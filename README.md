@@ -1,6 +1,6 @@
 Hi!
 
-This is my "Multiplayer Game" project for the Village 88 web development bootcamp / training. This is built with JavaScript and Node.js.
+This is my "Multiplayer Game" project for the Village 88 web development bootcamp / training. This is built with JavaScript and Node.js and is a **work in progress**.
 
 Assets:
 * sprites: [Tiny Swords by Pixel Frog on itch.io](https://pixelfrog-assets.itch.io/tiny-swords)
