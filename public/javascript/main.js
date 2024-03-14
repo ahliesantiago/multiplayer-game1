@@ -1,8 +1,15 @@
 $(document).ready(function(){
 	const socket = io();
+
+	// let index = 0;
+	// const colors = ['Blue', 'Red', 'Purple', 'Yellow'];
+	// socket.on('createPlayer', function(data){
+	// 	data.socket.player = new Player("player" + (index + 1), index + 1, colors[index]);
+	// 	socket.emit('playerCreated');
+	// });
 	
 	$(document).on('keydown', function(e){
-		// console.log(e.originalEvent.key, e.originalEvent.keyCode);
+		console.log(e.originalEvent.key, e.originalEvent.keyCode);
 		if(e.keyCode == 38 || e.keyCode == 87){ //up arrow key or W
 			socket.emit('keyPress', {key: 'up', state: true})
 		}else if(e.keyCode == 37 || e.keyCode == 65){ // left arrow key or A
@@ -17,6 +24,8 @@ $(document).ready(function(){
 			socket.emit('keyPress', {key: 'attack', state: true})
 		}else if(e.keyCode == 81){ // Q
 			socket.emit('keyPress', {key: 'cast', state: true})
+		}else if(e.keyCode == 13){ // Enter
+			$('#chat').focus();
 		}
 	});
 	
@@ -40,6 +49,14 @@ $(document).ready(function(){
 			socket.emit('keyPress', {key: 'cast', state: false})
 		}
 	});
+
+	$(document).on('mouseenter', '#chat', function(){
+		$('#chatbox').css('display', "block");
+	});
+
+	$(document).on('mouseleave', '#chat', function(){
+		$('#chatbox').css('display', "none");
+	});
 	
 	socket.on('drawNewSprite', function(data){
 		$('#world').append('<div class="hpbar '+data.player.selector+'"></div>');
@@ -59,12 +76,40 @@ $(document).ready(function(){
 	
 	socket.on('moveSprite', function(data){
 		$('.'+data.player.selector).css({'left': data.player.posX + "px", 'top': data.player.posY + "px", 'width': data.player.hp + "px"});
-		$('#'+data.player.selector).css({'left': data.player.posX + "px", 'top': data.player.posY + "px", 'transform': "scaleX("+data.player.scaleX+")", 'background-position': data.player.poseX+"px "+data.player.poseY+"px"});
+		$('#'+data.player.selector).css({'left': data.player.posX + "px", 'top': data.player.posY + "px", 'transform': "scaleX("+data.player.scaleX+")", 'background-position': data.player.poseX+"px "+data.player.poseY+"px", 'rotate': data.player.rotate + "deg"});
 	});
 	
     $(document).on('submit', 'form', function(){
-		let chat = $(this).children('#chat').val();
+		let chat = $('#chat').val();
 		socket.emit('chatted', {input: chat});
+		$(this).children('#chat').val("");
         return false;
-    })
+    });
+	
+	socket.on('printChats', function(data){
+		for(let chat of data.chats){
+			$('#chatbox').append(chat);
+			$('#chatbox').css('display', "block");
+			setTimeout(function(){
+				$('#chatbox').css('display', "none");
+			}, 4000);
+		}
+	});
+
+	socket.on('printChat', function(data){
+		$('#chatbox').append(data.chat);
+		$('#chatbox').css('display', "block");
+		setTimeout(function(){
+			$('#chatbox').css('display', "none");
+		}, 4000);
+		// $('#chatbox').html();
+		// for(let chat of data.chats){
+		// 	$('#chatbox').append("<p>" + chat + "</p>");
+		// }
+	});
+
+	socket.on('disconnected', function(data){
+		$('#' + data.player).remove(); //deletes the sprite
+		$('.' + data.player).remove(); //deletes the HP bar
+	})
 });

@@ -17,10 +17,11 @@ app.set('view engine', 'ejs');
 let player_list = [];
 
 class Player{
-    constructor(selector, nth, color){
+    constructor(selector, nth, color, id){
         this.selector = selector;
         this.playerNumber = nth;
         this.color = color;
+        this.id = id; // the socket.id
         if(nth % 2 != 0){ // if odd player, the sprite's starting point should be on the left side and facing right            
             this.posX = 100;
             (nth == 3) ? this.posY = 500 : this.posY = 300;
@@ -70,7 +71,7 @@ class Player{
             this.posX += 5;
             this.scaleX = 1;
             this.poseX = -50;
-            this.poseY = -40;
+            this.poseY = -220;
             // if(this.running){
             //     this.updateAction("RUN_RIGHT");
             // }else if(this.attacking){
@@ -83,7 +84,7 @@ class Player{
             this.posX -= 5;
             this.scaleX = -1;
             this.poseX = -50;
-            this.poseY = -40;
+            this.poseY = -220;
         }else if(this.goingUp){
             this.updateAction("WALK_UP");
             this.posY -= 5;
@@ -102,6 +103,10 @@ class Player{
             this.updateAction("CAST");
             this.poseX = -240;
             this.poseY = -415;
+        }else{
+            this.updateAction("STANDING");
+            this.poseX = -50;
+            this.poseY = -40;
         }
 	}
 
@@ -116,6 +121,10 @@ class Player{
 
     damaged(){
         this.hp -= 10;
+    }
+
+    heal(){
+        this.hp += 10;
     }
 
     lose(){
@@ -151,66 +160,78 @@ class Player{
 
 let online_players = {};
 let index = 0;
+let chat_history = [];
 const colors = ['Blue', 'Red', 'Purple', 'Yellow']
 io.on('connection', function(socket){
-    socket.player = new Player("player" + (index + 1), index + 1, colors[index]);
+    if(chat_history){
+        socket.emit('printChats', {chats: chat_history});
+    }
+    socket.player = new Player("player" + (index + 1), index + 1, colors[index], socket.id);
     online_players[socket.id] = socket.player;
     let player = socket.player;
     // console.log(index);
     // console.log(socket.player);
+    // console.log(online_players);
+    console.log(player.selector, "connected. current number of players online:", Object.keys(online_players).length);
     // console.log(online_players[socket.id]);
     // console.log(player.selector);
     socket.broadcast.emit('drawNewSprite', {player: player});
     socket.emit('drawSprites', {players: online_players});
     socket.on('keyPress', function(data){
-        if(data.key == 'up'){
-            player.goingUp = data.state;
-        }else if(data.key == 'down'){
-            player.goingDown = data.state;
-        }else if(data.key == 'left'){
-            player.goingLeft = data.state;
-        }else if(data.key == 'right'){
-            player.goingRight = data.state;
-        }else if(data.key == 'cast'){
-            player.casting = data.state;
-        }else if(data.key == 'attack'){
-            player.attacking = data.state;
-            if(player.attack()){
-                let victim = player.attack();
-                console.log(player.selector, "attacked", victim.selector);
-                victim.damaged();
-                victim.updatePos();
-                victim.lose();
-                io.emit('moveSprite', {player: victim});
+        if(player.status != "dead"){
+            if(data.key == 'up'){
+                player.goingUp = data.state;
+            }else if(data.key == 'down'){
+                player.goingDown = data.state;
+            }else if(data.key == 'left'){
+                player.goingLeft = data.state;
+            }else if(data.key == 'right'){
+                player.goingRight = data.state;
+            }else if(data.key == 'cast'){
+                player.casting = data.state;
+                player.heal();
+                io.emit('moveSprite', {player: player});
+            }else if(data.key == 'attack'){
+                player.attacking = data.state;
+                if(player.attack()){
+                    let victim = player.attack();
+                    console.log(player.selector, "attacked", victim.selector);
+                    victim.damaged();
+                    if(victim.hp <= 0){
+                        victim.lose();
+                        victim.status = "dead";
+                        console.log(victim);
+                        delete online_players[victim.id];
+                        victim.updatePos();
+                        io.emit('moveSprite', {player: victim});
+                    }
+                    victim.updatePos();
+                    io.emit('moveSprite', {player: victim});
+                }
             }
         }
         player.updatePos();
         io.emit('moveSprite', {player: player});
     });
     index++;
+
+    socket.on('chatted', function(data){
+        if(data.input != ""){
+            let chat = "<p>" + player.selector + ": " + data.input + "</p>";
+            chat_history.push(chat);
+            io.emit('printChat', {chat: chat});
+        }
+    });
+
     socket.on('disconnect', function(socket){
         index--;
+        io.emit('disconnected', {player: player.selector});
+        console.log(player.selector, "disconnected. current number of players online:");
         delete online_players[socket.id];
-        console.log(online_players);
+        delete player;
+        console.log(Object.keys(online_players).length);
+        // console.log(online_players);
     });
 });
-
-setInterval(function(){
-    // let players = [];
-    for(let i in online_players){
-        let player = online_players[i];
-    }
-    // for(let i in online_players){
-    //     let player = online_players[i];
-    //     player.moveSprite();
-    //     players.push({
-    //         x: player.posX,
-    //         y: player.posY,
-    //         number: player.playerNumber
-    //     });
-    // }
-    // for(let i in online_players){
-    //     let player = online_players[i];
-    //     player.emit('newPositions', players);
-    // }
-}, 40); // 1000/25 - 25fps
+chat_history = [];
+online_players = {};
